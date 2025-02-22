@@ -42,8 +42,8 @@ def noepyCheckType(data):
                 tex_found = True
         elif magic == b'\x03\x00' and magic2 == b'\xFF\xFF':
             mesh_found = True
-            if tex_found:  
-                return 1
+        elif magic == b'\x01\x00' and magic2 == b'\x03\xFC': # do not pick up bin file that has world mesh
+            return 0
     if mesh_found and tex_found:
         return 1         
     return 0
