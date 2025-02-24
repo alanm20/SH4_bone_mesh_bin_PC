@@ -24,6 +24,8 @@ def registerNoesisTypes():
     return 1
 
 def noepyCheckType(data):
+    filepath = os.path.basename(rapi.getInputName())
+    basename  = os.path.splitext(os.path.basename(filepath))[0]    
     bs=NoeBitStream(data)
     n = bs.readUInt()
     ofs = bs.read('%iI'%n)
@@ -43,7 +45,8 @@ def noepyCheckType(data):
         elif magic == b'\x03\x00' and magic2 == b'\xFF\xFF':
             mesh_found = True
         elif magic == b'\x01\x00' and magic2 == b'\x03\xFC': # do not pick up bin file that has world mesh
-            return 0
+            if basename != 'phe_rl01':
+                return 0
     if mesh_found and tex_found:
         return 1         
     return 0
@@ -103,7 +106,6 @@ def LoadTexture(data, tex_chunkList):
                     pos = bs.tell()
                     bs.seek(imgDataOffs[0] + tex_start)  # only load first mipmap, highest resolution
                     texName = "Tex_" + str(tex_id) + "_" + str(t) + "_"  + str(s)   # image_chunk_grpindex_subindex           
-                    texNameList.append(texName)
 
                     print(texName,ddsWidth,ddsHeight,format,mip_cnt,hex(ddsSize))                                        
                     ddsData = bs.readBytes(ddsSize)                                      
@@ -118,11 +120,12 @@ def LoadTexture(data, tex_chunkList):
                         print ("non-compressed texture!!!")    
                         dxt = noesis.NOESISTEX_RGBA32   # if it is not DXT , last guess would be a raw uncompress image
                         dds_array = bytearray(ddsData)                        
-                        for j in range(0, len(dds_array), 4): #swap red and blue byte
+                        for j in range(0, len(dds_array), 4): #swap red and blue channel
                             dds_array[j], dds_array[j + 2] = dds_array[j + 2], dds_array[j]
                         ddsData = bytes(dds_array)
-
-                    texList.append(NoeTexture(texName, ddsWidth, ddsHeight, ddsData, dxt))
+                    texture=NoeTexture(texName, ddsWidth, ddsHeight, ddsData, dxt)
+                    texNameList.append((texName,texture))
+                    texList.append(texture)
                     bs.seek(pos)       
             tex_id += 1
             tex_chunkList.append(texList)    
@@ -130,6 +133,11 @@ def LoadTexture(data, tex_chunkList):
 
 # specail mesh to texture mapping for wp_model.bin    
 wp_model_tex_chunk=[1,2,3,4,5,6,7,8,8,9,9,10,10,11,11,12,12,13,13,14,14,15,15,16,16,17,17,18,18,19,19,20,21,22,23,24,25,26,27,28,29,30,31]
+tw_mob_tex_chunk=[0,0,0,0,1,1,1,1,2,2,2,2]
+tw_cars_tex_chunk=[1,1,1,1,1,1,2,1,1,2,2,1,2,2,1,3,3,3,1,1,3,3,3,3,0,3,1,3,3]
+eil_arms_tex_chunk=[1,2,3,4,5]
+#handle haunting texture assigment , each element specify a model's texture idx. (mesh0_all_mesh_tex_idx, mesh1_first_mesh_tex_idx, mesh1_other_mesh_tex_idx)
+phe_rl01_tex_chunk=[(0,2,0),(0,3,1),(0,0,0),(4,5,5),(0,0,0),(0,0,0),(0,0,0),(0,0,0),(0,0,0),(1,1,1),(8,8,8),(8,8,8),(8,8,8),(0,0,0),(0,0,0),(0,0,0)]
 
 def noepyLoadModel(data, mdlList):
     bs = NoeBitStream(data)
@@ -143,6 +151,10 @@ def noepyLoadModel(data, mdlList):
     basename  = os.path.splitext(os.path.basename(filepath))[0]
 
     LoadTexture(data,tex_chunkList)
+    if basename=="tw_cars":    # make shodow texture available to all vehicle models
+        n_texchunk = len(tex_chunkList)
+        for x in range(1,n_texchunk):
+            tex_chunkList[x].extend(tex_chunkList[0])  # add shodaw texture [0] to other texture chunk
                 
     n = bs.readUInt()
     ofs = bs.read('%iI'%n)
@@ -166,12 +178,33 @@ def noepyLoadModel(data, mdlList):
                 mdl = NoeModel()
 
             mdl.setBones(bones)
-            n_tchunk = len(tex_chunkList)
-            if basename=="wp_model":
-                use_chunk = wp_model_tex_chunk[model_id]
+
+            if basename=="phe_rl01":
+                texs=[]
+                t1,t2,t3=phe_rl01_tex_chunk[model_id]
+                texs.append(texNameList[t1][1])
+                if t1 != t2:
+                    texs.append(texNameList[t2][1])
+                if t2 != t3:
+                    texs.append(texNameList[t3][1])
             else:
-                use_chunk = model_id
-            mdl.setModelMaterials(NoeModelMaterials(tex_chunkList[use_chunk], mtrlList))
+                if basename=="eil_arms":
+                    use_chunk = eil_arms_tex_chunk[model_id]                                                
+                elif basename=="tw_cars":
+                    use_chunk = tw_cars_tex_chunk[model_id]                                                
+                elif basename=="tw_mob":
+                    use_chunk = tw_mob_tex_chunk[model_id]    
+                elif basename=="wp_model":
+                    use_chunk = wp_model_tex_chunk[model_id]
+                else:
+                    use_chunk = model_id
+                texs =  tex_chunkList[use_chunk]
+            mdl.setModelMaterials(NoeModelMaterials(texs, mtrlList))           
+            '''all_texs = []
+            if model_id == 0:
+                for t in tex_chunkList:
+                    all_texs.extend(t)      
+                mdl.setModelMaterials(NoeModelMaterials(all_texs, mtrlList))  '''
             mdlList.append(mdl)
             model_id += 1    
     return 1
@@ -219,16 +252,16 @@ def readMesh(bs,model_id):
     #print ("model ",str(model_id), "no of mesh0 ", str(hd[7]))
     bs.seek(cpos+hd[8])
     for x in range(hd[7]):
-        readSM(bs,"Mesh"+str(model_id)+"_g0_",model_id, x,bones,_bp,boneMat,mtrlMap)
+        readSM(bs,"Mesh"+str(model_id),0,model_id, x,bones,_bp,boneMat,mtrlMap)
     #print ("model ",str(model_id), "no of mesh1 ", str(hd[9]))
     bs.seek(cpos+hd[10])
     for x in range(hd[9]):
-        readSM(bs,"Mesh"+str(model_id)+"_g1_",model_id, x,bones,_bp,boneMat,mtrlMap)
+        readSM(bs,"Mesh"+str(model_id),1,model_id, x,bones,_bp,boneMat,mtrlMap)
     return 1
 
 
 
-def readSM(bs,prefix,model_id, x,bones,bone_pair,boneMat,mtrlMap):
+def readSM(bs,prefix,mesh_grp,model_id, x,bones,bone_pair,boneMat,mtrlMap):
     m_start = bs.tell()
     inf = bs.read('16I')
     
@@ -252,11 +285,32 @@ def readSM(bs,prefix,model_id, x,bones,bone_pair,boneMat,mtrlMap):
 
     if mtrlName not in mtrlNameSet:
         mtrlNameSet.add(mtrlName)
-        if basename == "wp_model":  #special texture rule
-            tex_id = wp_model_tex_chunk[model_id]        
+        if basename == "phe_rl01":
+            t1,t2,t3=phe_rl01_tex_chunk[model_id]
+            if mesh_grp == 0:
+                texName=texNameList[t1][0]
+            else:
+                if x == 0:
+                    texName=texNameList[t2][0]
+                else:
+                    texName=texNameList[t3][0]                
         else:
-            tex_id = model_id
-        texName = "Tex_" + str(tex_id) + "_" + str(tex_grp) + "_" + str(tex_sub)        
+            if basename == "tw_cars":
+                if mesh_grp  > 0:
+                    tex_id = 0  # point to shadow texture grp
+                    if model_id == 4:
+                        tex_grp = 0
+                else:
+                    tex_id = tw_cars_tex_chunk[model_id]
+            elif basename == "eil_arms":
+                tex_id = eil_arms_tex_chunk[model_id]
+            elif basename == "tw_mob":
+                tex_id = tw_mob_tex_chunk[model_id]        
+            elif basename == "wp_model":  #special texture rule
+                tex_id = wp_model_tex_chunk[model_id]        
+            else:
+                tex_id = model_id
+            texName = "Tex_" + str(tex_id) + "_" + str(tex_grp) + "_" + str(tex_sub)        
         mtrlList.append( NoeMaterial(mtrlName,texName))
         print ("material id", material_id, mtrlName, texName)
     rapi.rpgSetMaterial(mtrlName)  # assign material
@@ -351,8 +405,8 @@ def readSM(bs,prefix,model_id, x,bones,bone_pair,boneMat,mtrlMap):
             rapi.rpgBindBoneIndexBufferOfs(v_buf,noesis.RPGEODATA_UINT,64,32,4)
             rapi.rpgBindBoneWeightBufferOfs(v_buf,noesis.RPGEODATA_FLOAT,64,48,4)            
 
-        mesh_name = prefix + str(x) + "_" + str(s)   
-        #print(mesh_name)     
+        mesh_name = prefix + "_"+str(mesh_grp)+"_"+str(x) + "_" + str(s)   
+        print(mesh_name)     
         rapi.rpgSetName(mesh_name)
         rapi.rpgCommitTriangles(i_buf, noesis.RPGEODATA_USHORT, submesh[s][0], noesis.RPGEO_TRIANGLE_STRIP)
         rapi.rpgClearBufferBinds() #reset in case a subsequent mesh doesn't have the same components
