@@ -155,6 +155,7 @@ def noepyLoadModel(data, mdlList):
         n_texchunk = len(tex_chunkList)
         for x in range(1,n_texchunk):
             tex_chunkList[x].extend(tex_chunkList[0])  # add shodaw texture [0] to other texture chunk
+    n_tex_chunk = len(tex_chunkList)
                 
     n = bs.readUInt()
     ofs = bs.read('%iI'%n)
@@ -197,14 +198,17 @@ def noepyLoadModel(data, mdlList):
                 elif basename=="wp_model":
                     use_chunk = wp_model_tex_chunk[model_id]
                 else:
-                    use_chunk = model_id
+                    use_chunk = model_id                
+                if use_chunk >= n_tex_chunk:
+                    use_chunk = n_tex_chunk - 1
                 texs =  tex_chunkList[use_chunk]
             mdl.setModelMaterials(NoeModelMaterials(texs, mtrlList))           
             '''all_texs = []
             if model_id == 0:
                 for t in tex_chunkList:
                     all_texs.extend(t)      
-                mdl.setModelMaterials(NoeModelMaterials(all_texs, mtrlList))  '''
+                mdl.setModelMaterials(NoeModelMaterials(all_texs, mtrlList))  
+            '''
             mdlList.append(mdl)
             model_id += 1    
     return 1
