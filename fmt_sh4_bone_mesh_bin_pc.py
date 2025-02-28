@@ -137,7 +137,7 @@ tw_mob_tex_chunk=[0,0,0,0,1,1,1,1,2,2,2,2]
 tw_cars_tex_chunk=[1,1,1,1,1,1,2,1,1,2,2,1,2,2,1,3,3,3,1,1,3,3,3,3,0,3,1,3,3]
 eil_arms_tex_chunk=[1,2,3,4,5]
 #handle haunting texture assigment , each element specify a model's texture idx. (mesh0_all_mesh_tex_idx, mesh1_first_mesh_tex_idx, mesh1_other_mesh_tex_idx)
-phe_rl01_tex_chunk=[(0,2,0),(0,3,1),(0,0,0),(4,5,5),(0,0,0),(0,0,0),(0,0,0),(0,0,0),(0,0,0),(1,1,1),(8,8,8),(8,8,8),(8,8,8),(0,0,0),(0,0,0),(0,0,0)]
+phe_rl01_tex_chunk=[(0,2,0),(0,3,1),(0,0,0),(4,5,5),(0,0,0),(0,0,0),(0,0,0),(0,0,0),(1,1,1),(1,1,1),(1,1,1),(1,1,1),(6,6,6),(7,7,7),(0,0,0),(1,1,1)]
 
 def noepyLoadModel(data, mdlList):
     bs = NoeBitStream(data)
@@ -202,13 +202,15 @@ def noepyLoadModel(data, mdlList):
                 if use_chunk >= n_tex_chunk:
                     use_chunk = n_tex_chunk - 1
                 texs =  tex_chunkList[use_chunk]
-            mdl.setModelMaterials(NoeModelMaterials(texs, mtrlList))           
-            '''all_texs = []
-            if model_id == 0:
-                for t in tex_chunkList:
-                    all_texs.extend(t)      
-                mdl.setModelMaterials(NoeModelMaterials(all_texs, mtrlList))  
-            '''
+            if True:
+                mdl.setModelMaterials(NoeModelMaterials(texs, mtrlList))           
+            else:
+                all_texs = []
+                if model_id == 0:
+                    for t in tex_chunkList:
+                        all_texs.extend(t)      
+                    mdl.setModelMaterials(NoeModelMaterials(all_texs, mtrlList))  
+                
             mdlList.append(mdl)
             model_id += 1    
     return 1
