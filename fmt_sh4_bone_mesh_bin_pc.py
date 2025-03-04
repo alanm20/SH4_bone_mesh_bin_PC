@@ -189,7 +189,12 @@ def noepyLoadModel(data, mdlList):
                 if t2 != t3:
                     texs.append(texNameList[t3][1])
             else:
-                if basename=="eil_arms":
+                if basename=="st_all":
+                    if model_id == 4:
+                        use_chunk = 3
+                    else:
+                        use_chunk = model_id
+                elif basename=="eil_arms":
                     use_chunk = eil_arms_tex_chunk[model_id]                                                
                 elif basename=="tw_cars":
                     use_chunk = tw_cars_tex_chunk[model_id]                                                
@@ -301,7 +306,13 @@ def readSM(bs,prefix,mesh_grp,model_id, x,bones,bone_pair,boneMat,mtrlMap):
                 else:
                     texName=texNameList[t3][0]                
         else:
-            if basename == "tw_cars":
+            if basename == "st_all":
+                if model_id == 4:
+                    tex_id = 3   
+                    tex_grp = material_id
+                else:
+                    tex_id = model_id             
+            elif basename == "tw_cars":
                 if mesh_grp  > 0:
                     tex_id = 0  # point to shadow texture grp
                     if model_id == 4:
